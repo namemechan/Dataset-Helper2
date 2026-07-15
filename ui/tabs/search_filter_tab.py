@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore    import Qt, Signal, Slot
+from PySide6.QtGui     import QPixmap
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QGroupBox, QLabel, QLineEdit, QCheckBox, QRadioButton,
     QPushButton, QButtonGroup, QScrollArea, QSplitter,
-    QTreeWidget, QTreeWidgetItem, QHeaderView,
+    QTreeWidget, QTreeWidgetItem, QHeaderView, QAbstractItemView,
     QFileDialog, QMessageBox, QSizePolicy, QFrame,
     QDialog, QTextEdit,
 )
@@ -305,6 +306,13 @@ class SearchFilterTab(QWidget):
 
         # 결과 트리
         self.tree = QTreeWidget()
+        self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        # 검색 결과는 계층형 트리가 아니므로 기본 들여쓰기를 제거한다.
+        # 이 공간 때문에 첫 번째 체크박스가 오른쪽으로 밀려 보이지 않는 문제가 있었다.
+        self.tree.setRootIsDecorated(False)
+        self.tree.setIndentation(0)
         self.tree.setHeaderLabels(self._COLUMNS)
         self.tree.setAlternatingRowColors(True)
         for i, w in enumerate(self._COL_W):
@@ -350,6 +358,7 @@ class SearchFilterTab(QWidget):
         self.sel_all_btn.clicked.connect(self._select_all)
         self.desel_all_btn.clicked.connect(self._deselect_all)
         self.tree.itemSelectionChanged.connect(self._on_tree_select)
+        self.tree.itemClicked.connect(self._on_tree_clicked)
         self.tree.itemChanged.connect(self._on_item_check_changed)
         self.del_btn.clicked.connect(lambda: self._on_action('delete'))
         self.move_btn.clicked.connect(lambda: self._on_action('move'))
@@ -602,7 +611,13 @@ class SearchFilterTab(QWidget):
 
     def _on_item_check_changed(self, item: QTreeWidgetItem, col: int) -> None:
         if col == 0:
+            # 체크박스를 눌러도 해당 파일을 현재 행으로 선택한다.
+            self.tree.setCurrentItem(item)
             self._update_sel_count()
+
+    def _on_tree_clicked(self, item: QTreeWidgetItem, col: int) -> None:
+        """행 클릭은 미리보기 선택만 처리하고 체크 상태는 변경하지 않는다."""
+        self.tree.setCurrentItem(item)
 
     def _select_all(self) -> None:
         self.tree.blockSignals(True)
