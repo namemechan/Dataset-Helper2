@@ -47,6 +47,10 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._connect_signals()
         self._load_settings()
+        # 저장된 설정이 없는 첫 실행에도 상단 기본 코어 수를 모든 탭에 전달한다.
+        # QSpinBox의 초기 setValue()는 시그널 연결 전이므로, 이 호출이 없으면
+        # 일부 탭이 내부 기본값(1코어)으로 남을 수 있다.
+        self._broadcast_cores(self.core_spin.value())
 
     def _build_ui(self) -> None:
         self.setWindowTitle('dataset-helper')
@@ -78,8 +82,11 @@ class MainWindow(QMainWindow):
 
         core_lbl = QLabel('사용 코어:')
         self.core_spin = QSpinBox()
-        self.core_spin.setRange(1, os.cpu_count() or 1)
-        self.core_spin.setValue(os.cpu_count() or 1)
+        available_cores = os.cpu_count() or 1
+        self.core_spin.setRange(1, available_cores)
+        # 첫 실행 기본값은 4코어로 두되, 4코어 미만 환경에서는 가능한 최대값을 사용한다.
+        # 이후 사용자가 바꾼 값은 app_settings.json에서 다시 불러온다.
+        self.core_spin.setValue(min(4, available_cores))
         self.core_spin.setFixedWidth(55)
 
         core_layout.addWidget(core_lbl)
