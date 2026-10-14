@@ -299,6 +299,43 @@ class TagTab(QWidget):
         lay_delete.addLayout(row_del_cond)
         scroll_layout.addWidget(grp_delete)
 
+        # ── 5. 태그 문자 정리 ─────────────────────────────────
+        grp_text = QGroupBox('태그 문자 정리')
+        lay_text = QVBoxLayout(grp_text)
+        row_escape = QHBoxLayout()
+        self.escape_parentheses_chk = QCheckBox('괄호이스케이프 처리')
+        row_escape.addWidget(self.escape_parentheses_chk)
+        row_escape.addStretch()
+        row_underscore = QHBoxLayout()
+        self.underscore_space_chk = QCheckBox('_(언더바) 공백으로 치환')
+        underscore_except_lbl = QLabel('예외 문자 (|로 구분):')
+        self.underscore_except_edit = QLineEdit()
+        self.underscore_except_edit.setPlaceholderText('예: 😀|✨')
+        row_underscore.addWidget(self.underscore_space_chk)
+        row_underscore.addWidget(underscore_except_lbl)
+        row_underscore.addWidget(self.underscore_except_edit)
+        lay_text.addLayout(row_escape)
+        lay_text.addLayout(row_underscore)
+        scroll_layout.addWidget(grp_text)
+
+        # ── 6. 줄바꿈 처리 ────────────────────────────────────
+        grp_newline = QGroupBox('줄바꿈 처리')
+        lay_newline = QHBoxLayout(grp_newline)
+        self.newline_chk = QCheckBox('사용')
+        self.newline_remove_rb = QRadioButton('단순 줄바꿈 삭제')
+        self.newline_comma_rb = QRadioButton('줄바꿈 삭제 + ,(공백)추가')
+        self.newline_first_rb = QRadioButton('첫줄 이외 삭제')
+        self.newline_remove_rb.setChecked(True)
+        self._newline_mode_grp = QButtonGroup(self)
+        self._newline_mode_grp.addButton(self.newline_remove_rb, 0)
+        self._newline_mode_grp.addButton(self.newline_comma_rb, 1)
+        self._newline_mode_grp.addButton(self.newline_first_rb, 2)
+        for widget in (self.newline_chk, self.newline_remove_rb,
+                       self.newline_comma_rb, self.newline_first_rb):
+            lay_newline.addWidget(widget)
+        lay_newline.addStretch()
+        scroll_layout.addWidget(grp_newline)
+
         scroll_layout.addStretch()
 
         # ── 실행 버튼 바 ──────────────────────────────────────
@@ -390,6 +427,11 @@ class TagTab(QWidget):
             'tag_delete_text':     self.delete_tags_edit.text(),
             'tag_cond_del':        self.cond_del_chk.isChecked(),
             'tag_cond_del_text':   self.cond_del_edit.text(),
+            'tag_escape_parentheses': self.escape_parentheses_chk.isChecked(),
+            'tag_underscore_space': self.underscore_space_chk.isChecked(),
+            'tag_underscore_exceptions': self.underscore_except_edit.text(),
+            'tag_newline_process': self.newline_chk.isChecked(),
+            'tag_newline_mode': self._newline_mode(),
         }
 
     def load_settings(self, s: dict) -> None:
@@ -439,6 +481,14 @@ class TagTab(QWidget):
         self.delete_tags_edit.setText(_s('tag_delete_text'))
         self.cond_del_chk.setChecked(_b('tag_cond_del'))
         self.cond_del_edit.setText(_s('tag_cond_del_text'))
+        self.escape_parentheses_chk.setChecked(_b('tag_escape_parentheses'))
+        self.underscore_space_chk.setChecked(_b('tag_underscore_space'))
+        self.underscore_except_edit.setText(_s('tag_underscore_exceptions'))
+        self.newline_chk.setChecked(_b('tag_newline_process'))
+        newline_mode = _s('tag_newline_mode', 'remove')
+        self.newline_remove_rb.setChecked(newline_mode == 'remove')
+        self.newline_comma_rb.setChecked(newline_mode == 'comma')
+        self.newline_first_rb.setChecked(newline_mode == 'first_line')
 
     # ------------------------------------------------------------------
     # 내부 헬퍼
@@ -448,6 +498,11 @@ class TagTab(QWidget):
         if self.csv_rep_rb.isChecked(): return 'replace'
         if self.csv_del_rb.isChecked(): return 'delete'
         return 'add'
+
+    def _newline_mode(self) -> str:
+        if self.newline_comma_rb.isChecked(): return 'comma'
+        if self.newline_first_rb.isChecked(): return 'first_line'
+        return 'remove'
 
     def _load_csv_tags(self) -> set:
         path = self.csv_path_edit.text().strip()
@@ -496,6 +551,11 @@ class TagTab(QWidget):
             'delete_tags':            [t.strip() for t in self.delete_tags_edit.text().split('|') if t.strip()],
             'use_conditional_delete': self.cond_del_chk.isChecked(),
             'condition_delete_tags':  self.cond_del_edit.text().strip(),
+            'escape_parentheses':    self.escape_parentheses_chk.isChecked(),
+            'replace_underscore_space': self.underscore_space_chk.isChecked(),
+            'underscore_exceptions': [t for t in self.underscore_except_edit.text().split('|') if t],
+            'use_newline_process': self.newline_chk.isChecked(),
+            'newline_mode': self._newline_mode(),
         }
 
     def _any_option_active(self, options: dict) -> bool:
@@ -504,7 +564,9 @@ class TagTab(QWidget):
             options['use_move_custom'], options['use_replace'],
             options['use_delete'],      options['use_add'],
             options['use_missing_tag'], options['use_neighbor_modify'],
-            options['use_csv_process'],
+            options['use_csv_process'], options['escape_parentheses'],
+            options['replace_underscore_space'],
+            options['use_newline_process'],
         ])
 
     def _get_text_files(self):
@@ -584,6 +646,12 @@ class TagTab(QWidget):
             s = ' (조건부)' if options['use_conditional_add'] else ''
             lines.append(f'- 태그 추가{s}')
         if options['use_move_custom']:    lines.append('- 추가 태그 이동')
+        if options['escape_parentheses']: lines.append('- 괄호 이스케이프 처리')
+        if options['replace_underscore_space']:
+            lines.append('- 언더바를 공백으로 치환')
+        if options['use_newline_process']:
+            mode_names = {'remove': '단순 줄바꿈 삭제', 'comma': '줄바꿈 삭제 + ,(공백)추가', 'first_line': '첫줄 이외 삭제'}
+            lines.append(f"- 줄바꿈 처리: {mode_names[options['newline_mode']]}")
 
         answer = QMessageBox.question(self, '확인', '\n'.join(lines))
         if answer != QMessageBox.StandardButton.Yes:

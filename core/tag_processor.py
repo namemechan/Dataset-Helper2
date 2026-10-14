@@ -148,8 +148,25 @@ class TagProcessor:
         Returns:
             (new_content, changes) — 변경된 내용과 변경 설명 리스트
         """
+        if options.get('use_newline_process'):
+            normalized_content = content.replace('\r\n', '\n').replace('\r', '\n')
+            newline_mode = options.get('newline_mode', 'remove')
+            if newline_mode == 'comma':
+                content = normalized_content.replace('\n', ', ')
+            elif newline_mode == 'first_line':
+                content = normalized_content.split('\n', 1)[0]
+            else:
+                content = normalized_content.replace('\n', '')
+
         tags    = TagProcessor.parse_tags(content)
         changes: List[str] = []
+        if options.get('use_newline_process') and content != normalized_content:
+            mode_names = {
+                'remove': '단순 줄바꿈 삭제',
+                'comma': '줄바꿈 삭제 + ,(공백)추가',
+                'first_line': '첫줄 이외 삭제',
+            }
+            changes.append(f"줄바꿈 처리: {mode_names.get(newline_mode, mode_names['remove'])}")
 
         # ── 내부 헬퍼 ──────────────────────────────────────────
         def replace_subsequence(
@@ -339,6 +356,37 @@ class TagProcessor:
                     tags = new_adds + tags
                     changes.append(f"추가: '{add_str}' (맨 앞)")
 
+        # ── 5. 태그 문자 정리 ─────────────────────────────────
+        if options.get('replace_underscore_space'):
+            exceptions = [str(value) for value in options.get('underscore_exceptions', []) if str(value)]
+            updated_tags = []
+            changed_count = 0
+            for tag in tags:
+                # 예외 문자가 포함된 태그는 이모지/기호 태그일 수 있어 그대로 둔다.
+                if '_' in tag and not any(char in tag for char in exceptions):
+                    updated_tags.append(tag.replace('_', ' '))
+                    changed_count += 1
+                else:
+                    updated_tags.append(tag)
+            if changed_count:
+                tags = updated_tags
+                changes.append(f"언더바 공백 치환: {changed_count}개 태그")
+
+        if options.get('escape_parentheses'):
+            updated_tags = []
+            changed_count = 0
+            for tag in tags:
+                escaped = []
+                for index, char in enumerate(tag):
+                    if char in '()' and (index == 0 or tag[index - 1] != '\\'):
+                        escaped.append('\\')
+                        changed_count += 1
+                    escaped.append(char)
+                updated_tags.append(''.join(escaped))
+            if changed_count:
+                tags = updated_tags
+                changes.append(f"괄호 이스케이프: {changed_count}개 문자")
+
         return TagProcessor.join_tags(tags), changes
 
     # ------------------------------------------------------------------
@@ -448,6 +496,13 @@ class TagProcessor:
         if options.get('use_add'):
             suffix = ' (조건부)' if options.get('use_conditional_add') else ''
             op_summary.append(f"[추가] {options['add_tags']}{suffix}")
+        if options.get('replace_underscore_space'):
+            op_summary.append('[문자 정리] 언더바를 공백으로 치환')
+        if options.get('escape_parentheses'):
+            op_summary.append('[문자 정리] 괄호 이스케이프')
+        if options.get('use_newline_process'):
+            mode_names = {'remove': '단순 삭제', 'comma': ',(공백) 추가', 'first_line': '첫줄만 유지'}
+            op_summary.append(f"[줄바꿈] {mode_names.get(options.get('newline_mode', 'remove'), '단순 삭제')}")
 
         preview: List[str] = [f"적용 옵션: {', '.join(op_summary) if op_summary else '없음'}\n", '-' * 50]
         count = processed_count = 0

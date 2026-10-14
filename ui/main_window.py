@@ -33,6 +33,7 @@ from ui.tabs.duplicate_tab      import DuplicateTab
 from ui.tabs.analyzer_tab       import AnalyzerTab
 from ui.tabs.search_filter_tab  import SearchFilterTab
 from ui.tabs.xy_plot_tab        import XYPlotTab
+from ui.tabs.complexity_tab     import ComplexityTab
 
 from utils.settings import load_app_settings, save_app_settings
 from utils.logger   import logger
@@ -121,6 +122,7 @@ class MainWindow(QMainWindow):
         self.analyzer_tab  = AnalyzerTab()
         self.sf_tab        = SearchFilterTab()
         self.xy_tab        = XYPlotTab()
+        self.complexity_tab = ComplexityTab()
 
         self.tabs.addTab(self.rename_tab,    '이름 변경')
         self.tabs.addTab(self.single_tab,    '단일 파일 찾기')
@@ -130,6 +132,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.analyzer_tab,  '데이터셋 분석')
         self.tabs.addTab(self.sf_tab,        '검색 및 분류')
         self.tabs.addTab(self.xy_tab,        'XY표 만들기')
+        self.tabs.addTab(self.complexity_tab, '복잡도 태깅')
 
         root.addWidget(self.tabs, stretch=1)
 
@@ -142,13 +145,14 @@ class MainWindow(QMainWindow):
 
     def _broadcast_folder(self, folder: str) -> None:
         for tab in (self.rename_tab, self.single_tab, self.tag_tab,
-                    self.duplicate_tab, self.analyzer_tab, self.sf_tab):
+                    self.duplicate_tab, self.analyzer_tab, self.sf_tab,
+                    self.complexity_tab):
             tab.set_folder(folder)
 
     def _broadcast_cores(self, n: int) -> None:
         for tab in (self.tag_tab, self.converter_tab,
                     self.duplicate_tab, self.analyzer_tab,
-                    self.sf_tab, self.xy_tab):
+                    self.sf_tab, self.xy_tab, self.complexity_tab):
             tab.set_num_cores(n)
 
     @Slot(str)
@@ -197,7 +201,7 @@ class MainWindow(QMainWindow):
         }
         for tab in (self.rename_tab, self.single_tab, self.tag_tab,
                     self.converter_tab, self.duplicate_tab, self.analyzer_tab,
-                    self.sf_tab, self.xy_tab):
+                    self.sf_tab, self.xy_tab, self.complexity_tab):
             s.update(tab.get_settings())
         return s
 
@@ -219,7 +223,7 @@ class MainWindow(QMainWindow):
 
         for tab in (self.rename_tab, self.single_tab, self.tag_tab,
                     self.converter_tab, self.duplicate_tab, self.analyzer_tab,
-                    self.sf_tab, self.xy_tab):
+                    self.sf_tab, self.xy_tab, self.complexity_tab):
             tab.load_settings(s)
 
     def _load_settings(self) -> None:

@@ -2,3 +2,5 @@ PySide6
 Pillow
 psutil
 piexif
+numpy>=1.24
+opencv-python-headless>=4.8
